@@ -1,11 +1,10 @@
 module github.com/conduitio/conduit-processor-template
 
-go 1.23
+go 1.24.0
+
 require (
 	github.com/conduitio/conduit-commons v0.5.1
 	github.com/conduitio/conduit-processor-sdk v0.4.1
-	github.com/golangci/golangci-lint v1.64.4
-	mvdan.cc/gofumpt v0.7.0
 )
 
 require (
@@ -115,6 +114,7 @@ require (
 	github.com/golangci/dupl v0.0.0-20180902072040-3e9179ac440a // indirect
 	github.com/golangci/go-printf-func-name v0.1.0 // indirect
 	github.com/golangci/gofmt v0.0.0-20250106114630-d62b90e6713d // indirect
+	github.com/golangci/golangci-lint v1.64.4 // indirect
 	github.com/golangci/misspell v0.6.0 // indirect
 	github.com/golangci/plugin-module-register v0.1.1 // indirect
 	github.com/golangci/revgrep v0.8.0 // indirect
@@ -295,6 +295,13 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.6.0 // indirect
+	mvdan.cc/gofumpt v0.7.0 // indirect
 	mvdan.cc/unparam v0.0.0-20240528143540-8a5130ca722f // indirect
 	pluginrpc.com/pluginrpc v0.5.0 // indirect
+)
+
+tool (
+	github.com/conduitio/conduit-commons/paramgen
+	github.com/golangci/golangci-lint/cmd/golangci-lint
+	mvdan.cc/gofumpt
 )

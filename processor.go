@@ -9,7 +9,7 @@ import (
 	sdk "github.com/conduitio/conduit-processor-sdk"
 )
 
-//go:generate paramgen -output=paramgen_proc.go ProcessorConfig
+//go:generate go tool paramgen -output=paramgen_proc.go ProcessorConfig
 
 type Processor struct {
 	sdk.UnimplementedProcessor
