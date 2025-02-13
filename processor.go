@@ -1,4 +1,4 @@
-package processorname
+package textgen
 
 import (
 	"context"
@@ -55,7 +55,7 @@ func (p *Processor) Specification() (sdk.Specification, error) {
 	// parameters it expects.
 
 	return sdk.Specification{
-		Name:        "processorname",
+		Name:        "textgen",
 		Summary:     "<describe your processor>",
 		Description: "<describe your processor in detail>",
 		Version:     "devel",
