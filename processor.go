@@ -2,74 +2,188 @@ package textgen
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/conduitio/conduit-commons/config"
 	"github.com/conduitio/conduit-commons/opencdc"
 	sdk "github.com/conduitio/conduit-processor-sdk"
+	"github.com/sashabaranov/go-openai"
+	"github.com/sashabaranov/go-openai/jsonschema"
 )
 
 //go:generate go tool paramgen -output=paramgen_proc.go ProcessorConfig
 
 type Processor struct {
 	sdk.UnimplementedProcessor
-	referenceResolver sdk.ReferenceResolver
 
 	config ProcessorConfig
+
+	client *openai.Client
+}
+
+type OpenAIRequestConfig struct {
+	Model               string            `json:"model"`
+	MaxTokens           int               `json:"max_tokens"`
+	MaxCompletionTokens int               `json:"max_completion_tokens"`
+	Temperature         float32           `json:"temperature"`
+	TopP                float32           `json:"top_p"`
+	N                   int               `json:"n"`
+	Stream              bool              `json:"stream"`
+	Stop                []string          `json:"stop"`
+	PresencePenalty     float32           `json:"presence_penalty"`
+	Seed                *int              `json:"seed"`
+	FrequencyPenalty    float32           `json:"frequency_penalty"`
+	LogitBias           map[string]int    `json:"logit_bias"`
+	LogProbs            bool              `json:"log_probs"`
+	TopLogProbs         int               `json:"top_log_probs"`
+	User                string            `json:"user"`
+	Store               bool              `json:"store"`
+	ReasoningEffort     string            `json:"reasoning_effort"`
+	Metadata            map[string]string `json:"metadata"`
 }
 
 type ProcessorConfig struct {
-	// Field is the target field that will be set.
-	Field string `json:"field" validate:"required,exclusion=.Position"`
-	// Threshold is the threshold for filtering the record.
-	Threshold int `json:"threshold" validate:"required,gt=0"`
+	OpenAIRequestConfig `json:"openai"`
+
+	OpenaiApiKey     string `json:"openai_api_key" validate:"required"`
+	DeveloperMessage string `json:"developer_message" validate:"required"`
+	StrictOutput     bool   `json:"strict_output" default:"false"`
 }
 
 func NewProcessor() sdk.Processor {
-	// Create Processor and wrap it in the default middleware.
 	return sdk.ProcessorWithMiddleware(&Processor{}, sdk.DefaultProcessorMiddleware()...)
 }
 
 func (p *Processor) Configure(ctx context.Context, cfg config.Config) error {
-	// Configure is the first function to be called in a processor. It provides the processor
-	// with the configuration that needs to be validated and stored to be used in other methods.
-	// This method should not open connections or any other resources. It should solely focus
-	// on parsing and validating the configuration itself.
-
 	err := sdk.ParseConfig(ctx, cfg, &p.config, ProcessorConfig{}.Parameters())
 	if err != nil {
 		return fmt.Errorf("failed to parse configuration: %w", err)
 	}
 
-	resolver, err := sdk.NewReferenceResolver(p.config.Field)
-	if err != nil {
-		return fmt.Errorf("failed to parse the %q param: %w", "field", err)
+	if !strings.Contains(p.config.DeveloperMessage, "json") ||
+		!strings.Contains(p.config.DeveloperMessage, "JSON") {
+		return fmt.Errorf("developer_message must contain 'json' or 'JSON'")
 	}
-	p.referenceResolver = resolver
+
+	p.client = openai.NewClient(p.config.OpenaiApiKey)
+
 	return nil
 }
 
 func (p *Processor) Specification() (sdk.Specification, error) {
-	// Specification contains the metadata for the processor, which can be used to define how
-	// to reference the processor, describe what the processor does and the configuration
-	// parameters it expects.
-
 	return sdk.Specification{
-		Name:        "textgen",
-		Summary:     "<describe your processor>",
-		Description: "<describe your processor in detail>",
+		Name:        "openai-textgen",
+		Summary:     "modify records using openai models",
+		Description: "textgen is a conduit processor that will transform a record based on a given prompt",
 		Version:     "devel",
-		Author:      "<your name>",
+		Author:      "Meroxa, Inc.",
 		Parameters:  p.config.Parameters(),
 	}, nil
 }
 
-func (p *Processor) Process(_ context.Context, _ []opencdc.Record) []sdk.ProcessedRecord {
-	// Process is the main show of the processor, here we would manipulate the records received
-	// and return the processed ones. After processing the slice of records that the function
-	// got, and if no errors occurred, it should return a slice of sdk.ProcessedRecord that
-	// matches the length of the input slice. However, if an error occurred while processing a
-	// specific record, then it should be reflected in the ProcessedRecord with the same index
-	// as the input record, and should return the slice at that index length.
+func (p *Processor) Process(ctx context.Context, recs []opencdc.Record) []sdk.ProcessedRecord {
+
 	return make([]sdk.ProcessedRecord, 0)
+}
+
+func (p *Processor) createChatCompletion(ctx context.Context, records []opencdc.Record) (openai.ChatCompletionResponse, error) {
+	req, err := p.createChatCompletionRequest(records)
+	if err != nil {
+		return openai.ChatCompletionResponse{}, err
+	}
+
+	res, err := p.client.CreateChatCompletion(ctx, req)
+	if err != nil {
+		return openai.ChatCompletionResponse{}, fmt.Errorf("chat completion failed: %w", err)
+	}
+
+	return res, nil
+}
+
+func (p *Processor) createChatCompletionRequest(records []opencdc.Record) (openai.ChatCompletionRequest, error) {
+	bs, err := json.Marshal(records)
+	if err != nil {
+		return openai.ChatCompletionRequest{}, fmt.Errorf("failed to marshal records: %w", err)
+	}
+
+	req := openai.ChatCompletionRequest{
+		Model: p.config.Model,
+		Messages: []openai.ChatCompletionMessage{
+			{Role: "developer", Content: p.config.DeveloperMessage},
+			{Role: "user", Content: string(bs)},
+		},
+		MaxTokens:           p.config.MaxTokens,
+		MaxCompletionTokens: p.config.MaxCompletionTokens,
+		Temperature:         p.config.Temperature,
+		TopP:                p.config.TopP,
+		N:                   p.config.N,
+		Stop:                p.config.Stop,
+		PresencePenalty:     p.config.PresencePenalty,
+		ResponseFormat: &openai.ChatCompletionResponseFormat{
+			Type: "json_object",
+			JSONSchema: &openai.ChatCompletionResponseFormatJSONSchema{
+				Strict: true,
+				Schema: &jsonschema.Definition{Type: jsonschema.Array, Items: &wantedRecordDef},
+			},
+		},
+		Seed:             p.config.Seed,
+		FrequencyPenalty: p.config.FrequencyPenalty,
+		LogitBias:        p.config.LogitBias,
+		LogProbs:         p.config.LogProbs,
+		TopLogProbs:      p.config.TopLogProbs,
+		User:             p.config.User,
+		Store:            p.config.Store,
+		ReasoningEffort:  p.config.ReasoningEffort,
+		Metadata:         p.config.Metadata,
+	}
+
+	return req, nil
+}
+
+var wantedRecordDef = jsonschema.Definition{
+	Type:                 jsonschema.Object,
+	AdditionalProperties: false,
+	Properties: map[string]jsonschema.Definition{
+		"key": {
+			Type: jsonschema.String, Enum: []string{"string", "object", "null"},
+			AdditionalProperties: false,
+		},
+		"before": {Type: jsonschema.String, Enum: []string{"string", "object", "null"}},
+		"after":  {Type: jsonschema.String, Enum: []string{"string", "object", "null"}},
+	},
+	Required: []string{"key", "before", "after"},
+}
+
+var opencdcPayloadDef = jsonschema.Definition{
+	Type:                 jsonschema.Object,
+	AdditionalProperties: false,
+	Properties: map[string]jsonschema.Definition{
+		"before": {Type: jsonschema.String, Enum: []string{"string", "object", "null"}},
+		"after":  {Type: jsonschema.String, Enum: []string{"string", "object", "null"}},
+	},
+	Required: []string{"before", "after"},
+}
+
+var opencdcRecordDef = jsonschema.Definition{
+	Type:                 jsonschema.Object,
+	AdditionalProperties: false,
+	Properties: map[string]jsonschema.Definition{
+		"position": {
+			Type: jsonschema.String, Enum: []string{"string", "null"},
+			AdditionalProperties: false,
+		},
+		"operation": {Type: jsonschema.String},
+		"metadata": {
+			Type:                 jsonschema.Object,
+			AdditionalProperties: &jsonschema.Definition{Type: jsonschema.String},
+		},
+		"key": {
+			Type: jsonschema.String, Enum: []string{"string", "object", "null"},
+			AdditionalProperties: false,
+		},
+		"payload": opencdcPayloadDef,
+	},
+	Required: []string{"position", "operation", "metadata", "key", "payload"},
 }
