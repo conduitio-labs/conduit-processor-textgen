@@ -84,8 +84,49 @@ func (p *Processor) Specification() (sdk.Specification, error) {
 }
 
 func (p *Processor) Process(ctx context.Context, recs []opencdc.Record) []sdk.ProcessedRecord {
+	res, err := p.createChatCompletion(ctx, recs)
+	if err != nil {
+		processedRecords := make([]sdk.ProcessedRecord, len(recs))
+		for i := range recs {
+			processedRecords[i] = sdk.ErrorRecord{Error: err}
+		}
+		return processedRecords
+	}
 
-	return make([]sdk.ProcessedRecord, 0)
+	var wantedRecords []WantedRecord
+	if err = json.Unmarshal([]byte(res.Choices[0].Message.Content), &wantedRecords); err != nil {
+		processedRecords := make([]sdk.ProcessedRecord, len(recs))
+		for i := range recs {
+			processedRecords[i] = sdk.ErrorRecord{Error: err}
+		}
+		return processedRecords
+	}
+
+	processedRecords := make([]sdk.ProcessedRecord, len(recs))
+	for i := range recs {
+		rec := recs[i]
+		wantedRecord := wantedRecords[i]
+
+		if string(rec.Key.Bytes()) == wantedRecord.Key {
+			newRec := opencdc.Record{
+				Position:  rec.Position,
+				Operation: rec.Operation,
+				Metadata:  rec.Metadata,
+				Key:       rec.Key,
+				Payload: opencdc.Change{
+					Before: opencdc.RawData([]byte(wantedRecord.Before)),
+					After:  opencdc.RawData([]byte(wantedRecord.After)),
+				},
+			}
+
+			processedRecords[i] = sdk.SingleRecord(newRec)
+		} else {
+			err := fmt.Errorf("key mismatch: %s != %s", string(rec.Key.Bytes()), wantedRecord.Key)
+			processedRecords[i] = sdk.ErrorRecord{Error: err}
+		}
+	}
+
+	return processedRecords
 }
 
 func (p *Processor) createChatCompletion(ctx context.Context, records []opencdc.Record) (openai.ChatCompletionResponse, error) {
@@ -140,6 +181,12 @@ func (p *Processor) createChatCompletionRequest(records []opencdc.Record) (opena
 	}
 
 	return req, nil
+}
+
+type WantedRecord struct {
+	Key    string `json:"key"`
+	Before string `json:"before"`
+	After  string `json:"after"`
 }
 
 var wantedRecordDef = jsonschema.Definition{
