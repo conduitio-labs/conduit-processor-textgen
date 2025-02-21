@@ -1,6 +1,6 @@
-# Conduit Processor for <resource>
+# Conduit Processor for Text Generation
 
-[Conduit](https://conduit.io) processor for <resource>.
+[Conduit](https://conduit.io) processor for text generation.
 
 ## How to build?
 
@@ -17,9 +17,8 @@ A description of what the processor achieves.
 ### Processor Configuration
 
 | name                     | description                              | required | default value |
-|--------------------------|------------------------------------------|----------|---------------|
+| ------------------------ | ---------------------------------------- | -------- | ------------- |
 | `processor_config_param` | Description of `processor_config_param`. | true     | ""            |
-
 
 ## Known Issues & Limitations
 

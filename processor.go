@@ -129,24 +129,10 @@ func (p *Processor) Process(ctx context.Context, recs []opencdc.Record) []sdk.Pr
 	return processedRecords
 }
 
-func (p *Processor) createChatCompletion(ctx context.Context, records []opencdc.Record) (openai.ChatCompletionResponse, error) {
-	req, err := p.createChatCompletionRequest(records)
-	if err != nil {
-		return openai.ChatCompletionResponse{}, err
-	}
-
-	res, err := p.client.CreateChatCompletion(ctx, req)
-	if err != nil {
-		return openai.ChatCompletionResponse{}, fmt.Errorf("chat completion failed: %w", err)
-	}
-
-	return res, nil
-}
-
-func (p *Processor) createChatCompletionRequest(records []opencdc.Record) (openai.ChatCompletionRequest, error) {
+func (p *Processor) createChatCompletion(ctx context.Context, records []opencdc.Record) (res openai.ChatCompletionResponse, err error) {
 	bs, err := json.Marshal(records)
 	if err != nil {
-		return openai.ChatCompletionRequest{}, fmt.Errorf("failed to marshal records: %w", err)
+		return res, fmt.Errorf("failed to marshal records: %w", err)
 	}
 
 	req := openai.ChatCompletionRequest{
@@ -180,7 +166,11 @@ func (p *Processor) createChatCompletionRequest(records []opencdc.Record) (opena
 		Metadata:         p.config.Metadata,
 	}
 
-	return req, nil
+	if res, err = p.client.CreateChatCompletion(ctx, req); err != nil {
+		return res, fmt.Errorf("chat completion failed: %w", err)
+	}
+
+	return res, nil
 }
 
 type WantedRecord struct {
