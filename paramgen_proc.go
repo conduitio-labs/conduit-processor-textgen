@@ -8,29 +8,162 @@ import (
 )
 
 const (
-	ProcessorConfigField     = "field"
-	ProcessorConfigThreshold = "threshold"
+	ProcessorConfigApiKey              = "api_key"
+	ProcessorConfigDeveloperMessage    = "developer_message"
+	ProcessorConfigFrequencyPenalty    = "frequency_penalty"
+	ProcessorConfigLogProbs            = "log_probs"
+	ProcessorConfigLogitBias           = "logit_bias.*"
+	ProcessorConfigMaxCompletionTokens = "max_completion_tokens"
+	ProcessorConfigMaxTokens           = "max_tokens"
+	ProcessorConfigMetadata            = "metadata.*"
+	ProcessorConfigModel               = "model"
+	ProcessorConfigN                   = "n"
+	ProcessorConfigPresencePenalty     = "presence_penalty"
+	ProcessorConfigReasoningEffort     = "reasoning_effort"
+	ProcessorConfigSeed                = "seed"
+	ProcessorConfigStop                = "stop"
+	ProcessorConfigStore               = "store"
+	ProcessorConfigStream              = "stream"
+	ProcessorConfigStrictOutput        = "strict_output"
+	ProcessorConfigTemperature         = "temperature"
+	ProcessorConfigTopLogProbs         = "top_log_probs"
+	ProcessorConfigTopP                = "top_p"
+	ProcessorConfigUser                = "user"
 )
 
 func (ProcessorConfig) Parameters() map[string]config.Parameter {
 	return map[string]config.Parameter{
-		ProcessorConfigField: {
+		ProcessorConfigApiKey: {
 			Default:     "",
-			Description: "Field is the target field that will be set.",
+			Description: "",
 			Type:        config.ParameterTypeString,
 			Validations: []config.Validation{
 				config.ValidationRequired{},
-				config.ValidationExclusion{List: []string{".Position"}},
 			},
 		},
-		ProcessorConfigThreshold: {
+		ProcessorConfigDeveloperMessage: {
 			Default:     "",
-			Description: "Threshold is the threshold for filtering the record.",
-			Type:        config.ParameterTypeInt,
+			Description: "",
+			Type:        config.ParameterTypeString,
 			Validations: []config.Validation{
 				config.ValidationRequired{},
-				config.ValidationGreaterThan{V: 0},
 			},
+		},
+		ProcessorConfigFrequencyPenalty: {
+			Default:     "",
+			Description: "",
+			Type:        config.ParameterTypeFloat,
+			Validations: []config.Validation{},
+		},
+		ProcessorConfigLogProbs: {
+			Default:     "",
+			Description: "",
+			Type:        config.ParameterTypeBool,
+			Validations: []config.Validation{},
+		},
+		ProcessorConfigLogitBias: {
+			Default:     "",
+			Description: "",
+			Type:        config.ParameterTypeInt,
+			Validations: []config.Validation{},
+		},
+		ProcessorConfigMaxCompletionTokens: {
+			Default:     "",
+			Description: "",
+			Type:        config.ParameterTypeInt,
+			Validations: []config.Validation{},
+		},
+		ProcessorConfigMaxTokens: {
+			Default:     "",
+			Description: "",
+			Type:        config.ParameterTypeInt,
+			Validations: []config.Validation{},
+		},
+		ProcessorConfigMetadata: {
+			Default:     "",
+			Description: "",
+			Type:        config.ParameterTypeString,
+			Validations: []config.Validation{},
+		},
+		ProcessorConfigModel: {
+			Default:     "",
+			Description: "",
+			Type:        config.ParameterTypeString,
+			Validations: []config.Validation{
+				config.ValidationRequired{},
+			},
+		},
+		ProcessorConfigN: {
+			Default:     "",
+			Description: "",
+			Type:        config.ParameterTypeInt,
+			Validations: []config.Validation{},
+		},
+		ProcessorConfigPresencePenalty: {
+			Default:     "",
+			Description: "",
+			Type:        config.ParameterTypeFloat,
+			Validations: []config.Validation{},
+		},
+		ProcessorConfigReasoningEffort: {
+			Default:     "",
+			Description: "",
+			Type:        config.ParameterTypeString,
+			Validations: []config.Validation{},
+		},
+		ProcessorConfigSeed: {
+			Default:     "",
+			Description: "",
+			Type:        config.ParameterTypeInt,
+			Validations: []config.Validation{},
+		},
+		ProcessorConfigStop: {
+			Default:     "",
+			Description: "",
+			Type:        config.ParameterTypeString,
+			Validations: []config.Validation{},
+		},
+		ProcessorConfigStore: {
+			Default:     "",
+			Description: "",
+			Type:        config.ParameterTypeBool,
+			Validations: []config.Validation{},
+		},
+		ProcessorConfigStream: {
+			Default:     "",
+			Description: "",
+			Type:        config.ParameterTypeBool,
+			Validations: []config.Validation{},
+		},
+		ProcessorConfigStrictOutput: {
+			Default:     "false",
+			Description: "",
+			Type:        config.ParameterTypeBool,
+			Validations: []config.Validation{},
+		},
+		ProcessorConfigTemperature: {
+			Default:     "",
+			Description: "",
+			Type:        config.ParameterTypeFloat,
+			Validations: []config.Validation{},
+		},
+		ProcessorConfigTopLogProbs: {
+			Default:     "",
+			Description: "",
+			Type:        config.ParameterTypeInt,
+			Validations: []config.Validation{},
+		},
+		ProcessorConfigTopP: {
+			Default:     "",
+			Description: "",
+			Type:        config.ParameterTypeFloat,
+			Validations: []config.Validation{},
+		},
+		ProcessorConfigUser: {
+			Default:     "",
+			Description: "",
+			Type:        config.ParameterTypeString,
+			Validations: []config.Validation{},
 		},
 	}
 }

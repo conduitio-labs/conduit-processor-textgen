@@ -23,8 +23,11 @@ type Processor struct {
 	client *openai.Client
 }
 
-type OpenAIRequestConfig struct {
-	Model               string            `json:"model"`
+type ProcessorConfig struct {
+	ApiKey              string            `json:"api_key" validate:"required"`
+	DeveloperMessage    string            `json:"developer_message" validate:"required"`
+	StrictOutput        bool              `json:"strict_output" default:"false"`
+	Model               string            `json:"model" validate:"required"`
 	MaxTokens           int               `json:"max_tokens"`
 	MaxCompletionTokens int               `json:"max_completion_tokens"`
 	Temperature         float32           `json:"temperature"`
@@ -44,14 +47,6 @@ type OpenAIRequestConfig struct {
 	Metadata            map[string]string `json:"metadata"`
 }
 
-type ProcessorConfig struct {
-	OpenAIRequestConfig `json:"openai"`
-
-	OpenaiApiKey     string `json:"openai_api_key" validate:"required"`
-	DeveloperMessage string `json:"developer_message" validate:"required"`
-	StrictOutput     bool   `json:"strict_output" default:"false"`
-}
-
 func NewProcessor() sdk.Processor {
 	return sdk.ProcessorWithMiddleware(&Processor{}, sdk.DefaultProcessorMiddleware()...)
 }
@@ -62,12 +57,12 @@ func (p *Processor) Configure(ctx context.Context, cfg config.Config) error {
 		return fmt.Errorf("failed to parse configuration: %w", err)
 	}
 
-	if !strings.Contains(p.config.DeveloperMessage, "json") ||
+	if !strings.Contains(p.config.DeveloperMessage, "json") &&
 		!strings.Contains(p.config.DeveloperMessage, "JSON") {
-		return fmt.Errorf("developer_message must contain 'json' or 'JSON'")
+		return fmt.Errorf("developer_message must contain 'json' or 'JSON' substrings")
 	}
 
-	p.client = openai.NewClient(p.config.OpenaiApiKey)
+	p.client = openai.NewClient(p.config.ApiKey)
 
 	return nil
 }
@@ -93,14 +88,16 @@ func (p *Processor) Process(ctx context.Context, recs []opencdc.Record) []sdk.Pr
 		return processedRecords
 	}
 
-	var wantedRecords []WantedRecord
-	if err = json.Unmarshal([]byte(res.Choices[0].Message.Content), &wantedRecords); err != nil {
+	var wrappedResponse WantedRecordsResponse
+	if err = json.Unmarshal([]byte(res.Choices[0].Message.Content), &wrappedResponse); err != nil {
 		processedRecords := make([]sdk.ProcessedRecord, len(recs))
 		for i := range recs {
 			processedRecords[i] = sdk.ErrorRecord{Error: err}
 		}
 		return processedRecords
 	}
+
+	wantedRecords := wrappedResponse.Records
 
 	processedRecords := make([]sdk.ProcessedRecord, len(recs))
 	for i := range recs {
@@ -149,10 +146,21 @@ func (p *Processor) createChatCompletion(ctx context.Context, records []opencdc.
 		Stop:                p.config.Stop,
 		PresencePenalty:     p.config.PresencePenalty,
 		ResponseFormat: &openai.ChatCompletionResponseFormat{
-			Type: "json_object",
+			Type: openai.ChatCompletionResponseFormatTypeJSONSchema,
 			JSONSchema: &openai.ChatCompletionResponseFormatJSONSchema{
+				Name:   "openai-textgen",
 				Strict: true,
-				Schema: &jsonschema.Definition{Type: jsonschema.Array, Items: &wantedRecordDef},
+				Schema: &jsonschema.Definition{
+					Type: jsonschema.Object,
+					Properties: map[string]jsonschema.Definition{
+						"records": {
+							Type:  jsonschema.Array,
+							Items: &wantedRecordDef,
+						},
+					},
+					Required:             []string{"records"},
+					AdditionalProperties: false,
+				},
 			},
 		},
 		Seed:             p.config.Seed,
@@ -163,7 +171,6 @@ func (p *Processor) createChatCompletion(ctx context.Context, records []opencdc.
 		User:             p.config.User,
 		Store:            p.config.Store,
 		ReasoningEffort:  p.config.ReasoningEffort,
-		Metadata:         p.config.Metadata,
 	}
 
 	if res, err = p.client.CreateChatCompletion(ctx, req); err != nil {
@@ -177,6 +184,11 @@ type WantedRecord struct {
 	Key    string `json:"key"`
 	Before string `json:"before"`
 	After  string `json:"after"`
+}
+
+// New type wrapping the records array
+type WantedRecordsResponse struct {
+	Records []WantedRecord `json:"records"`
 }
 
 var wantedRecordDef = jsonschema.Definition{
