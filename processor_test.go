@@ -9,6 +9,7 @@ import (
 	"github.com/conduitio/conduit-commons/opencdc"
 	sdk "github.com/conduitio/conduit-processor-sdk"
 	"github.com/matryer/is"
+	"github.com/sashabaranov/go-openai"
 )
 
 func TestProcessor_Process(t *testing.T) {
@@ -43,7 +44,7 @@ func newProcessor(ctx context.Context, is *is.I, devMessage string) sdk.Processo
 	is.True(apikey != "") // OPENAI_API_KEY must be set
 
 	cfg := config.Config{
-		ProcessorConfigModel:            "gpt-4o",
+		ProcessorConfigModel:            openai.GPT4o,
 		ProcessorConfigApiKey:           apikey,
 		ProcessorConfigDeveloperMessage: devMessage,
 	}

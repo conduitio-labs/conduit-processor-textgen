@@ -111,8 +111,8 @@ func (p *Processor) Process(ctx context.Context, recs []opencdc.Record) []sdk.Pr
 				Metadata:  rec.Metadata,
 				Key:       rec.Key,
 				Payload: opencdc.Change{
-					Before: opencdc.RawData([]byte(wantedRecord.Before)),
-					After:  opencdc.RawData([]byte(wantedRecord.After)),
+					Before: opencdc.RawData([]byte(wantedRecord.Payload.Before)),
+					After:  opencdc.RawData([]byte(wantedRecord.Payload.After)),
 				},
 			}
 
@@ -127,7 +127,18 @@ func (p *Processor) Process(ctx context.Context, recs []opencdc.Record) []sdk.Pr
 }
 
 func (p *Processor) createChatCompletion(ctx context.Context, records []opencdc.Record) (res openai.ChatCompletionResponse, err error) {
-	bs, err := json.Marshal(records)
+	mappedRecs := make([]WantedRecord, len(records))
+	for i := range records {
+		mappedRecs[i] = WantedRecord{
+			Key: string(records[i].Key.Bytes()),
+			Payload: WantedRecordPayload{
+				Before: string(records[i].Payload.Before.Bytes()),
+				After:  string(records[i].Payload.After.Bytes()),
+			},
+		}
+	}
+
+	bs, err := json.Marshal(mappedRecs)
 	if err != nil {
 		return res, fmt.Errorf("failed to marshal records: %w", err)
 	}
@@ -181,7 +192,11 @@ func (p *Processor) createChatCompletion(ctx context.Context, records []opencdc.
 }
 
 type WantedRecord struct {
-	Key    string `json:"key"`
+	Key     string              `json:"key"`
+	Payload WantedRecordPayload `json:"payload"`
+}
+
+type WantedRecordPayload struct {
 	Before string `json:"before"`
 	After  string `json:"after"`
 }
@@ -192,47 +207,31 @@ type WantedRecordsResponse struct {
 }
 
 var wantedRecordDef = jsonschema.Definition{
+	Description:          "Represents a record that should be transformed.",
 	Type:                 jsonschema.Object,
 	AdditionalProperties: false,
 	Properties: map[string]jsonschema.Definition{
 		"key": {
-			Type: jsonschema.String, Enum: []string{"string", "object", "null"},
+			Description: "Key represents a value that should identify the entity (e.g. database row).",
+			Type:        jsonschema.String, Enum: []string{"string", "object", "null"},
 			AdditionalProperties: false,
 		},
-		"before": {Type: jsonschema.String, Enum: []string{"string", "object", "null"}},
-		"after":  {Type: jsonschema.String, Enum: []string{"string", "object", "null"}},
-	},
-	Required: []string{"key", "before", "after"},
-}
-
-var opencdcPayloadDef = jsonschema.Definition{
-	Type:                 jsonschema.Object,
-	AdditionalProperties: false,
-	Properties: map[string]jsonschema.Definition{
-		"before": {Type: jsonschema.String, Enum: []string{"string", "object", "null"}},
-		"after":  {Type: jsonschema.String, Enum: []string{"string", "object", "null"}},
-	},
-	Required: []string{"before", "after"},
-}
-
-var opencdcRecordDef = jsonschema.Definition{
-	Type:                 jsonschema.Object,
-	AdditionalProperties: false,
-	Properties: map[string]jsonschema.Definition{
-		"position": {
-			Type: jsonschema.String, Enum: []string{"string", "null"},
-			AdditionalProperties: false,
-		},
-		"operation": {Type: jsonschema.String},
-		"metadata": {
+		"payload": {
 			Type:                 jsonschema.Object,
-			AdditionalProperties: &jsonschema.Definition{Type: jsonschema.String},
-		},
-		"key": {
-			Type: jsonschema.String, Enum: []string{"string", "object", "null"},
+			Description:          "Payload holds the payload change (data before and after the operation occurred).",
 			AdditionalProperties: false,
+			Properties: map[string]jsonschema.Definition{
+				"before": {
+					Type: jsonschema.String, Enum: []string{"string", "object", "null"},
+					Description: "Before contains the data before the operation occurred. This field is optional and should only be populated for operations OperationUpdate OperationDelete (if the system supports fetching the data before the operation).",
+				},
+				"after": {
+					Type: jsonschema.String, Enum: []string{"string", "object", "null"},
+					Description: "After contains the data after the operation occurred. This field should be populated for all operations except OperationDelete.",
+				},
+			},
+			Required: []string{"before", "after"},
 		},
-		"payload": opencdcPayloadDef,
 	},
-	Required: []string{"position", "operation", "metadata", "key", "payload"},
+	Required: []string{"key", "payload"},
 }
