@@ -18,7 +18,7 @@ func TestProcessor_Process(t *testing.T) {
 	ctx := context.Background()
 
 	processor := newProcessor(ctx, is,
-		"You will receive a json of a list of records. Your task is to output back a json of a list of records with the text of the payloads in uppercase.")
+		"You will receive a payload. Your task is to output back the payload in uppercase.")
 
 	recs := testRecords()
 
@@ -45,7 +45,7 @@ func newProcessor(ctx context.Context, is *is.I, devMessage string) sdk.Processo
 	is.True(apikey != "") // OPENAI_API_KEY must be set
 
 	cfg := config.Config{
-		ProcessorConfigModel:            openai.GPT4o,
+		ProcessorConfigModel:            openai.GPT4oMini,
 		ProcessorConfigApiKey:           apikey,
 		ProcessorConfigDeveloperMessage: devMessage,
 		ProcessorConfigTemperature:      "0",

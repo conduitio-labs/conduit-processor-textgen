@@ -10,6 +10,7 @@ import (
 const (
 	ProcessorConfigApiKey              = "api_key"
 	ProcessorConfigDeveloperMessage    = "developer_message"
+	ProcessorConfigField               = "field"
 	ProcessorConfigFrequencyPenalty    = "frequency_penalty"
 	ProcessorConfigLogProbs            = "log_probs"
 	ProcessorConfigLogitBias           = "logit_bias.*"
@@ -48,6 +49,12 @@ func (ProcessorConfig) Parameters() map[string]config.Parameter {
 			Validations: []config.Validation{
 				config.ValidationRequired{},
 			},
+		},
+		ProcessorConfigField: {
+			Default:     ".Payload.After",
+			Description: "",
+			Type:        config.ParameterTypeString,
+			Validations: []config.Validation{},
 		},
 		ProcessorConfigFrequencyPenalty: {
 			Default:     "",

@@ -2,15 +2,12 @@ package textgen
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/conduitio/conduit-commons/config"
 	"github.com/conduitio/conduit-commons/opencdc"
 	sdk "github.com/conduitio/conduit-processor-sdk"
 	"github.com/sashabaranov/go-openai"
-	"github.com/sashabaranov/go-openai/jsonschema"
 )
 
 //go:generate go tool paramgen -output=paramgen_proc.go ProcessorConfig
@@ -18,12 +15,13 @@ import (
 type Processor struct {
 	sdk.UnimplementedProcessor
 
-	config ProcessorConfig
-
-	client *openai.Client
+	config            ProcessorConfig
+	client            *openai.Client
+	referenceResolver sdk.ReferenceResolver
 }
 
 type ProcessorConfig struct {
+	Field               string            `json:"field" default:".Payload.After"`
 	ApiKey              string            `json:"api_key" validate:"required"`
 	DeveloperMessage    string            `json:"developer_message" validate:"required"`
 	StrictOutput        bool              `json:"strict_output" default:"false"`
@@ -57,9 +55,9 @@ func (p *Processor) Configure(ctx context.Context, cfg config.Config) error {
 		return fmt.Errorf("failed to parse configuration: %w", err)
 	}
 
-	if !strings.Contains(p.config.DeveloperMessage, "json") &&
-		!strings.Contains(p.config.DeveloperMessage, "JSON") {
-		return fmt.Errorf("developer_message must contain 'json' or 'JSON' substrings")
+	p.referenceResolver, err = sdk.NewReferenceResolver(p.config.Field)
+	if err != nil {
+		return fmt.Errorf("failed to create reference resolver: %w", err)
 	}
 
 	p.client = openai.NewClient(p.config.ApiKey)
@@ -79,75 +77,79 @@ func (p *Processor) Specification() (sdk.Specification, error) {
 }
 
 func (p *Processor) Process(ctx context.Context, recs []opencdc.Record) []sdk.ProcessedRecord {
-	res, err := p.createChatCompletion(ctx, recs)
-	if err != nil {
-		processedRecords := make([]sdk.ProcessedRecord, len(recs))
-		for i := range recs {
-			processedRecords[i] = sdk.ErrorRecord{Error: err}
-		}
-		return processedRecords
-	}
-
-	var wrappedResponse WantedRecordsResponse
-	if err = json.Unmarshal([]byte(res.Choices[0].Message.Content), &wrappedResponse); err != nil {
-		processedRecords := make([]sdk.ProcessedRecord, len(recs))
-		for i := range recs {
-			processedRecords[i] = sdk.ErrorRecord{Error: err}
-		}
-		return processedRecords
-	}
-
-	wantedRecords := wrappedResponse.Records
-
 	processedRecords := make([]sdk.ProcessedRecord, len(recs))
-	for i := range recs {
-		rec := recs[i]
-		wantedRecord := wantedRecords[i]
-
-		if string(rec.Key.Bytes()) == wantedRecord.Key {
-			newRec := opencdc.Record{
-				Position:  rec.Position,
-				Operation: rec.Operation,
-				Metadata:  rec.Metadata,
-				Key:       rec.Key,
-				Payload: opencdc.Change{
-					Before: opencdc.RawData([]byte(wantedRecord.Payload.Before)),
-					After:  opencdc.RawData([]byte(wantedRecord.Payload.After)),
-				},
-			}
-
-			processedRecords[i] = sdk.SingleRecord(newRec)
-		} else {
-			err := fmt.Errorf("key mismatch: %s != %s", string(rec.Key.Bytes()), wantedRecord.Key)
+	for i, rec := range recs {
+		processed, err := p.processRecord(ctx, rec)
+		if err != nil {
 			processedRecords[i] = sdk.ErrorRecord{Error: err}
+			continue
 		}
+
+		processedRecords[i] = sdk.SingleRecord(processed)
 	}
 
 	return processedRecords
 }
 
-func (p *Processor) createChatCompletion(ctx context.Context, records []opencdc.Record) (res openai.ChatCompletionResponse, err error) {
-	mappedRecs := make([]WantedRecord, len(records))
-	for i := range records {
-		mappedRecs[i] = WantedRecord{
-			Key: string(records[i].Key.Bytes()),
-			Payload: WantedRecordPayload{
-				Before: string(records[i].Payload.Before.Bytes()),
-				After:  string(records[i].Payload.After.Bytes()),
-			},
-		}
-	}
-
-	bs, err := json.Marshal(mappedRecs)
+func (p *Processor) processRecord(ctx context.Context, rec opencdc.Record) (opencdc.Record, error) {
+	ref, err := p.referenceResolver.Resolve(&rec)
 	if err != nil {
-		return res, fmt.Errorf("failed to marshal records: %w", err)
+		return rec, fmt.Errorf("failed to resolve reference: %w", err)
 	}
 
+	val := ref.Get()
+
+	var payload string
+	switch v := val.(type) {
+	case opencdc.Position:
+		payload = string(v)
+
+		res, err := p.createChatCompletion(ctx, payload)
+		if err != nil {
+			return rec, fmt.Errorf("failed to create chat completion: %w", err)
+		}
+
+		if err := ref.Set(opencdc.Position(res)); err != nil {
+			return rec, fmt.Errorf("failed to set position: %w", err)
+		}
+	case opencdc.Data:
+		payload = string(v.Bytes())
+
+		res, err := p.createChatCompletion(ctx, payload)
+		if err != nil {
+			return rec, fmt.Errorf("failed to create chat completion: %w", err)
+		}
+
+		var data opencdc.Data = opencdc.RawData(res)
+
+		if err := ref.Set(data); err != nil {
+			return rec, fmt.Errorf("failed to set data: %w", err)
+		}
+
+	case string:
+		payload = v
+
+		res, err := p.createChatCompletion(ctx, payload)
+		if err != nil {
+			return rec, fmt.Errorf("failed to create chat completion: %w", err)
+		}
+
+		if err := ref.Set(res); err != nil {
+			return rec, fmt.Errorf("failed to set data: %w", err)
+		}
+	default:
+		return rec, fmt.Errorf("unsupported type %T", v)
+	}
+
+	return rec, nil
+}
+
+func (p *Processor) createChatCompletion(ctx context.Context, payload string) (string, error) {
 	req := openai.ChatCompletionRequest{
 		Model: p.config.Model,
 		Messages: []openai.ChatCompletionMessage{
 			{Role: "developer", Content: p.config.DeveloperMessage},
-			{Role: "user", Content: string(bs)},
+			{Role: "user", Content: payload},
 		},
 		MaxTokens:           p.config.MaxTokens,
 		MaxCompletionTokens: p.config.MaxCompletionTokens,
@@ -156,82 +158,20 @@ func (p *Processor) createChatCompletion(ctx context.Context, records []opencdc.
 		N:                   p.config.N,
 		Stop:                p.config.Stop,
 		PresencePenalty:     p.config.PresencePenalty,
-		ResponseFormat: &openai.ChatCompletionResponseFormat{
-			Type: openai.ChatCompletionResponseFormatTypeJSONSchema,
-			JSONSchema: &openai.ChatCompletionResponseFormatJSONSchema{
-				Name:   "openai-textgen",
-				Strict: true,
-				Schema: &jsonschema.Definition{
-					Type: jsonschema.Object,
-					Properties: map[string]jsonschema.Definition{
-						"records": {
-							Type:  jsonschema.Array,
-							Items: &wantedRecordDef,
-						},
-					},
-					Required:             []string{"records"},
-					AdditionalProperties: false,
-				},
-			},
-		},
-		Seed:             p.config.Seed,
-		FrequencyPenalty: p.config.FrequencyPenalty,
-		LogitBias:        p.config.LogitBias,
-		LogProbs:         p.config.LogProbs,
-		TopLogProbs:      p.config.TopLogProbs,
-		User:             p.config.User,
-		Store:            p.config.Store,
-		ReasoningEffort:  p.config.ReasoningEffort,
+		Seed:                p.config.Seed,
+		FrequencyPenalty:    p.config.FrequencyPenalty,
+		LogitBias:           p.config.LogitBias,
+		LogProbs:            p.config.LogProbs,
+		TopLogProbs:         p.config.TopLogProbs,
+		User:                p.config.User,
+		Store:               p.config.Store,
+		ReasoningEffort:     p.config.ReasoningEffort,
 	}
 
-	if res, err = p.client.CreateChatCompletion(ctx, req); err != nil {
-		return res, fmt.Errorf("chat completion failed: %w", err)
+	res, err := p.client.CreateChatCompletion(ctx, req)
+	if err != nil {
+		return "", fmt.Errorf("chat completion failed: %w", err)
 	}
 
-	return res, nil
-}
-
-type WantedRecord struct {
-	Key     string              `json:"key"`
-	Payload WantedRecordPayload `json:"payload"`
-}
-
-type WantedRecordPayload struct {
-	Before string `json:"before"`
-	After  string `json:"after"`
-}
-
-// New type wrapping the records array
-type WantedRecordsResponse struct {
-	Records []WantedRecord `json:"records"`
-}
-
-var wantedRecordDef = jsonschema.Definition{
-	Description:          "Represents a record that should be transformed.",
-	Type:                 jsonschema.Object,
-	AdditionalProperties: false,
-	Properties: map[string]jsonschema.Definition{
-		"key": {
-			Description:          "Key represents a value that should identify the entity (e.g. database row).",
-			Type:                 jsonschema.String,
-			AdditionalProperties: false,
-		},
-		"payload": {
-			Type:                 jsonschema.Object,
-			Description:          "Payload holds the payload change (data before and after the operation occurred).",
-			AdditionalProperties: false,
-			Properties: map[string]jsonschema.Definition{
-				"before": {
-					Type:        jsonschema.String,
-					Description: "Before contains the data before the operation occurred. This field is optional and should only be populated for operations OperationUpdate OperationDelete (if the system supports fetching the data before the operation).",
-				},
-				"after": {
-					Type:        jsonschema.String,
-					Description: "After contains the data after the operation occurred. This field should be populated for all operations except OperationDelete.",
-				},
-			},
-			Required: []string{"before", "after"},
-		},
-	},
-	Required: []string{"key", "payload"},
+	return res.Choices[0].Message.Content, nil
 }
