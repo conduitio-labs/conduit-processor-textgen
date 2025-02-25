@@ -21,28 +21,50 @@ type Processor struct {
 }
 
 type ProcessorConfig struct {
-	Field               string            `json:"field" default:".Payload.After"`
-	ApiKey              string            `json:"api_key" validate:"required"`
-	DeveloperMessage    string            `json:"developer_message" validate:"required"`
-	StrictOutput        bool              `json:"strict_output" default:"false"`
-	Model               string            `json:"model" validate:"required"`
-	MaxTokens           int               `json:"max_tokens"`
-	MaxCompletionTokens int               `json:"max_completion_tokens"`
-	Temperature         float32           `json:"temperature"`
-	TopP                float32           `json:"top_p"`
-	N                   int               `json:"n"`
-	Stream              bool              `json:"stream"`
-	Stop                []string          `json:"stop"`
-	PresencePenalty     float32           `json:"presence_penalty"`
-	Seed                *int              `json:"seed"`
-	FrequencyPenalty    float32           `json:"frequency_penalty"`
-	LogitBias           map[string]int    `json:"logit_bias"`
-	LogProbs            bool              `json:"log_probs"`
-	TopLogProbs         int               `json:"top_log_probs"`
-	User                string            `json:"user"`
-	Store               bool              `json:"store"`
-	ReasoningEffort     string            `json:"reasoning_effort"`
-	Metadata            map[string]string `json:"metadata"`
+	// Field is the reference to the field to process. Defaults to ".Payload.After".
+	Field string `json:"field" default:".Payload.After"`
+	// ApiKey is the OpenAI API key. Required.
+	ApiKey string `json:"api_key" validate:"required"`
+	// DeveloperMessage is the system message that guides the model's behavior. Required.
+	DeveloperMessage string `json:"developer_message" validate:"required"`
+	// StrictOutput enforces strict output format. Defaults to false.
+	StrictOutput bool `json:"strict_output" default:"false"`
+	// Model is the OpenAI model to use (e.g., gpt-4o-mini). Required.
+	Model string `json:"model" validate:"required"`
+	// MaxTokens is the maximum number of tokens to generate.
+	MaxTokens int `json:"max_tokens"`
+	// MaxCompletionTokens is the maximum number of tokens for completion.
+	MaxCompletionTokens int `json:"max_completion_tokens"`
+	// Temperature controls randomness (0-2, lower is more deterministic).
+	Temperature float32 `json:"temperature"`
+	// TopP controls diversity via nucleus sampling.
+	TopP float32 `json:"top_p"`
+	// N is the number of completions to generate.
+	N int `json:"n"`
+	// Stream is whether to stream the results or not. Not used for now.
+	Stream bool `json:"stream"`
+	// Stop are sequences where the API will stop generating.
+	Stop []string `json:"stop"`
+	// PresencePenalty penalizes new tokens based on presence in text.
+	PresencePenalty float32 `json:"presence_penalty"`
+	// Seed is the seed for deterministic results.
+	Seed *int `json:"seed"`
+	// FrequencyPenalty penalizes new tokens based on frequency in text.
+	FrequencyPenalty float32 `json:"frequency_penalty"`
+	// LogitBias modifies the likelihood of specified tokens appearing.
+	LogitBias map[string]int `json:"logit_bias"`
+	// LogProbs is whether to return log probabilities of output tokens.
+	LogProbs bool `json:"log_probs"`
+	// TopLogProbs is the number of most likely tokens to return probabilities for.
+	TopLogProbs int `json:"top_log_probs"`
+	// User is the user identifier for OpenAI API.
+	User string `json:"user"`
+	// Store is whether to store the conversation in OpenAI.
+	Store bool `json:"store"`
+	// ReasoningEffort controls the amount of reasoning in the response.
+	ReasoningEffort string `json:"reasoning_effort"`
+	// Metadata is additional metadata to include with the request.
+	Metadata map[string]string `json:"metadata"`
 }
 
 func NewProcessor() sdk.Processor {
