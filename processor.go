@@ -92,6 +92,8 @@ func (p *Processor) Process(ctx context.Context, recs []opencdc.Record) []sdk.Pr
 }
 
 func (p *Processor) processRecord(ctx context.Context, rec opencdc.Record) (opencdc.Record, error) {
+	logger := sdk.Logger(ctx)
+
 	ref, err := p.referenceResolver.Resolve(&rec)
 	if err != nil {
 		return rec, fmt.Errorf("failed to resolve reference: %w", err)
@@ -109,6 +111,8 @@ func (p *Processor) processRecord(ctx context.Context, rec opencdc.Record) (open
 			return rec, fmt.Errorf("failed to create chat completion: %w", err)
 		}
 
+		logger.Trace().Msgf("processed record position %s", res)
+
 		if err := ref.Set(opencdc.Position(res)); err != nil {
 			return rec, fmt.Errorf("failed to set position: %w", err)
 		}
@@ -119,6 +123,8 @@ func (p *Processor) processRecord(ctx context.Context, rec opencdc.Record) (open
 		if err != nil {
 			return rec, fmt.Errorf("failed to create chat completion: %w", err)
 		}
+
+		logger.Trace().Msgf("processed record data %s", res)
 
 		var data opencdc.Data = opencdc.RawData(res)
 
@@ -133,6 +139,8 @@ func (p *Processor) processRecord(ctx context.Context, rec opencdc.Record) (open
 		if err != nil {
 			return rec, fmt.Errorf("failed to create chat completion: %w", err)
 		}
+
+		logger.Trace().Msgf("processed record string %s", res)
 
 		if err := ref.Set(res); err != nil {
 			return rec, fmt.Errorf("failed to set data: %w", err)
