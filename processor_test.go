@@ -3,6 +3,7 @@ package textgen
 import (
 	"context"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/conduitio/conduit-commons/config"
@@ -24,10 +25,10 @@ func TestProcessor_Process(t *testing.T) {
 	processed := processor.Process(ctx, recs)
 	is.Equal(len(processed), 3)
 
-	for _, p := range processed {
+	for i, p := range processed {
 		switch p := p.(type) {
 		case sdk.SingleRecord:
-			is.Equal(p.Payload.After, opencdc.RawData("AFT-REC-1"))
+			is.Equal(string(p.Payload.After.Bytes()), "AFT-REC-"+strconv.Itoa(i+1))
 		case sdk.FilterRecord:
 			is.Fail() // Filter Record should not happen
 		case sdk.ErrorRecord:
@@ -47,6 +48,7 @@ func newProcessor(ctx context.Context, is *is.I, devMessage string) sdk.Processo
 		ProcessorConfigModel:            openai.GPT4o,
 		ProcessorConfigApiKey:           apikey,
 		ProcessorConfigDeveloperMessage: devMessage,
+		ProcessorConfigTemperature:      "0",
 	}
 
 	is.NoErr(processor.Configure(ctx, cfg))

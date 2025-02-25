@@ -212,8 +212,8 @@ var wantedRecordDef = jsonschema.Definition{
 	AdditionalProperties: false,
 	Properties: map[string]jsonschema.Definition{
 		"key": {
-			Description: "Key represents a value that should identify the entity (e.g. database row).",
-			Type:        jsonschema.String, Enum: []string{"string", "object", "null"},
+			Description:          "Key represents a value that should identify the entity (e.g. database row).",
+			Type:                 jsonschema.String,
 			AdditionalProperties: false,
 		},
 		"payload": {
@@ -222,11 +222,11 @@ var wantedRecordDef = jsonschema.Definition{
 			AdditionalProperties: false,
 			Properties: map[string]jsonschema.Definition{
 				"before": {
-					Type: jsonschema.String, Enum: []string{"string", "object", "null"},
+					Type:        jsonschema.String,
 					Description: "Before contains the data before the operation occurred. This field is optional and should only be populated for operations OperationUpdate OperationDelete (if the system supports fetching the data before the operation).",
 				},
 				"after": {
-					Type: jsonschema.String, Enum: []string{"string", "object", "null"},
+					Type:        jsonschema.String,
 					Description: "After contains the data after the operation occurred. This field should be populated for all operations except OperationDelete.",
 				},
 			},
