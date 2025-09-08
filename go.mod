@@ -6,7 +6,7 @@ require (
 	github.com/conduitio/conduit-commons v0.6.0
 	github.com/conduitio/conduit-processor-sdk v0.5.0
 	github.com/golangci/golangci-lint v1.64.8
-	mvdan.cc/gofumpt v0.9.0
+	mvdan.cc/gofumpt v0.9.1
 )
 
 require (
