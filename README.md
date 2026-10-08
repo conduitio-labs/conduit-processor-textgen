@@ -1,32 +1,9 @@
-# Conduit Processor for <resource>
+# conduit-processor-textgen (archived)
 
-[Conduit](https://conduit.io) processor for <resource>.
+This repository is archived. It never got past the processor template: `Process` returns no records.
 
-## How to build?
-
-Run `make build` to build the processor.
-
-## Testing
-
-Run `make test` to run all the unit tests.
-
-## Functionality
-
-A description of what the processor achieves.
-
-### Processor Configuration
-
-| name                     | description                              | required | default value |
-|--------------------------|------------------------------------------|----------|---------------|
-| `processor_config_param` | Description of `processor_config_param`. | true     | ""            |
-
-
-## Known Issues & Limitations
-
-- Known issue A
-- Limitation A
-
-## Planned work
-
-- [ ] Item A
-- [ ] Item B
+Quick test-data generation for pipelines folds into the built-in
+[generator connector](https://github.com/ConduitIO/conduit-connector-generator) instead. See the Conduit catalog plan
+([ConduitIO/conduit#2951](https://github.com/ConduitIO/conduit/pull/2951)) and the tracking issue
+[ConduitIO/conduit#2959](https://github.com/ConduitIO/conduit/issues/2959). LLM-backed text generation as a processor
+is tracked in [ConduitIO/conduit#2958](https://github.com/ConduitIO/conduit/issues/2958).
